@@ -6,32 +6,12 @@
 # variables and intiatializing helper functions
 
 # ==== Loading libraries ====
-if (!require("pacman")) install.packages("pacman")
-pacman::p_load(tidyverse, bcdata, netstat, RSelenium, optparse, zip)
-
-# ==== Setting up Option Parsing ====
-
-# Creating a list of flags that the user can pass to store the raw datafiles generated or not. The default behaviour is no.
-option_list <-  list(
-  make_option(c("-k", "--keep"), type="logical", default=F, 
-              help="T/F: Whether to keep extracted csv files or not (Takes up a LOT more storage if yes) [Default= %default]", 
-              metavar="logical"),
-  make_option(c("-v", "--version"), type="character", default="98.0.4758.102", 
-              help="What chrome version to use for initializing the Selenium driver (run binman::list_versions('chromedriver') to see the list of available versions. Also see documentation for RSelenium::rsDriver() for more details) [Default= %default]", 
-              metavar="character"),
-  make_option(c("-s", "--sample"), type="numeric", default=Inf, 
-              help="If you would prefer to download data only for a random sample of the total wells, rather than all of them, specify the size of the sample you want (useful if you want to test the program on your system and so would prefer to only get a small subset of the data) [Default= No sampling]", 
-              metavar="numeric"),
-  make_option(c("-m", "--months"), type="numeric", default=18, 
-              help="The number of months for which we would like to download data. [Default= %default, the maximum allowed range for which data can be downloaded]",
-              metavar="numeric"))
-
-# Parse any provided options and store them in a list
-opt_parser = OptionParser(option_list=option_list)
-opt = parse_args(opt_parser)
+library(dplyr)
+library(stringr)
+library(bcdata)
 
 # Reading chrome options from the chromeOptions.R script
-source("scripts/selenium-download/00_set_chrome_options.R")
+source("scripts/selenium-download/00_set_program_options.R")
 
 # ==== Reading data ====
 
@@ -87,58 +67,6 @@ past_date <- curr_date - floor(opt$months * 30.4167)
 
 # Creating an iteration variable to help print how much of the process is complete
 countIter <- 1
-
-# ==== Defining helper functions ====
-
-# A function that takes a vector of filenames for the downloaded csvs and
-# returns a transformed set of object names (names that are easier to work with
-# as objects in R)
-transformNames <- function(x){
-  # Iterating over all the names and applying the appropriate transformation as
-  # defined by a case_when set of conditions:
-  for(i in 1:length(x)){
-    x[i] <- case_when(str_detect(tolower(x[i]), "precipitation|precip") ~ "precip",
-                      str_detect(tolower(x[i]), "air") &  str_detect(tolower(x[i]), "temperature|temp") ~ "air_temp",
-                      str_detect(tolower(x[i]), "water") &  str_detect(tolower(x[i]), "temperature|temp") ~ "water_temp",
-                      # If no air/water indiciation is given, we assume it to be
-                      # water temperature
-                      str_detect(tolower(x[i]), "temperature|temp") ~ "water_temp",
-                      str_detect(tolower(x[i]), "discharge|flow")   ~ "flow",
-                      str_detect(tolower(x[i]), "level") &  str_detect(tolower(x[i]), "prim")  ~ "level_prim",
-                      str_detect(tolower(x[i]), "level") &  str_detect(tolower(x[i]), "sec")  ~ "level_sec",
-                      TRUE~ str_replace(str_remove_all(tolower(x[i]), ".csv"), "\\s", "_"))
-  }
-  return(x)
-}
-
-# A function that takes a 5-minute interval dataframe and transforms it into a
-# daily means dataframe presented in the correct format
-formatData <- function(df, station, varName){
-  df <- df %>% 
-    select(Date = contains("Date"), Parameter, Value = contains("Value"), everything()) %>% 
-    mutate("STATION_NUMBER" = station) %>% 
-    mutate(Parameter = as.character(Parameter)) %>% 
-    mutate(Parameter = case_when(varName == "precip" ~ "Precipitation",
-                                 varName == "air_temp" ~ "Air Temperature",
-                                 varName == "water_temp" ~ "Water Temperature",
-                                 varName == "flow" ~ "Flow",
-                                 varName == "level_prim" ~ "Level (Primary Sensor)",
-                                 varName == "level_sec" ~ "Level (Secondary Sensor)",
-                                 TRUE ~ varName)) %>% 
-    mutate(Date = format.Date(Date, "%Y-%m-%d"))
-  if(nrow(df) > 0){
-    df <- df %>% 
-      group_by(Date) %>% 
-      group_modify(~ {
-        .x %>% 
-          mutate(Value = mean(Value, na.rm = T)) %>% 
-          head(n = 1)
-      }) %>% 
-      ungroup()
-  }
-  # Return the dataframe
-  return(df)
-}
 
 # ==== Running pre-requisite processes  ====
 

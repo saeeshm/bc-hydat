@@ -5,8 +5,33 @@
 # Description: Manipulating hydro data
 
 # ==== Loading libraries ====
-if (!require("pacman")) install.packages("pacman")
-pacman::p_load(tidyverse, bcdata, netstat, RSelenium, optparse, zip)
+library(dplyr)
+library(netstat)
+library(RSelenium)
+library(optparse)
+library(zip)
+
+# ==== Program setup ====
+
+
+# Reading program options definied in the options script
+source("scripts/selenium-download/00_set_program_options.R")
+
+option_list <-  list(
+  # make_option(c("-v", "--version"), type="character", default="98.0.4758.102", 
+  #             help="What chrome version to use for initializing the Selenium driver (run binman::list_versions('chromedriver') to see the list of available versions. Also see documentation for RSelenium::rsDriver() for more details) [Default= %default]", 
+  #             metavar="character"),
+  make_option(c("-s", "--sample"), type="numeric", default=Inf, 
+              help="If you would prefer to download data only for a random sample of the total wells, rather than all of them, specify the size of the sample you want (useful if you want to test the program on your system and so would prefer to only get a small subset of the data) [Default= No sampling]", 
+              metavar="numeric"),
+  make_option(c("-m", "--months"), type="numeric", default=18, 
+              help="The number of months for which we would like to download data. [Default= %default, the maximum allowed range for which data can be downloaded]",
+              metavar="numeric"))
+
+# Parse any provided options and store them in a list
+opt_parser = OptionParser(option_list=option_list)
+opt = parse_args(opt_parser)
+
 
 # ==== Setting up pre-requisite functions and objects and initializing option
 # parsing (see setup.R) ====

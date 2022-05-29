@@ -5,14 +5,29 @@
 # Description: append downloaded data to hydat datasets
 
 # ==== Loading libraries ====
-if (!require("pacman")) install.packages("pacman")
-pacman::p_load(dplyr, tidyhydat, DBI, RSQLite, optparse)
+library(dplyr)
+library(DBI)
+library(RSQLite)
+library(optparse)
+library(bcdata)
 source("help_funcs.R")
+
+# ==== Paths and global variables ====
+
+# Folder containing published hydat.sqlite file
+hydat_path <- "data"
+
+# Folder containing data scraped using the selenium-download process
+scraped_data_path <-  "data/output"
+
+# Folder where the updated data files will be stored (i.e outputs from this
+# script)
+out_path <- "data/output"
+
 
 # Flag for success
 success <- T
-gen_err <- NA_character_
-specific_err <- NA_character_
+err_message <- NA_character_
 
 # ==== Setting up option parsing ====
 tryCatch({
@@ -33,7 +48,7 @@ tryCatch({
   # Ensure that these are correct before proceeding with the next steps
   hydat_path <- "Z:/GWSI server Master Share Entry/GWSI Library and Resources/DATABASES/Hydrometric"
   scraped_data_path <-  "E:/saeeshProjects/BC_Hydrometric_Data_Scraping/data/output"
-  curr_data_path <- "Z:/GWSI server Master Share Entry/GWSI Library and Resources/DATABASES/Hydrometric"
+  out_path <- "Z:/GWSI server Master Share Entry/GWSI Library and Resources/DATABASES/Hydrometric"
   
   # A boolean indicating whether or not the data scraping application was run
   # and scraped data was obtained. Defaults to false, since the scraping program
