@@ -24,6 +24,22 @@ hydat_path <- paths$hydat_path
 # Postgres database credentials
 creds_path <- paths$postgres_creds_path
 
+# ==== Creating required project directories ====
+dir_create_soft <- function(path){
+  if (!dir.exists(path)) {
+    dir.create(path)
+  }else{
+    print(paste0('< ',path, ' >', ' already exists!'))
+  }
+}
+dir_create_soft('data')
+dir_create_soft('data/realtime')
+dir_create_soft('data/selenium-download')
+dir_create_soft('tempdirs')
+dir_create_soft('tempdirs/download')
+dir_create_soft('tempdirs/zip')
+dir_create_soft('logs')
+
 # ==== Downloading published Hydat data ====
 tidyhydat::download_hydat(
   dl_hydat_here = file.path(hydat_path, 'Hydat.sqlite'), 
