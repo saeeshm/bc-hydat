@@ -13,7 +13,6 @@ library(zip)
 
 # ==== Program setup ====
 
-
 # Reading program options definied in the options script
 source("scripts/selenium-download/00_set_program_options.R")
 
@@ -32,20 +31,35 @@ option_list <-  list(
 opt_parser = OptionParser(option_list=option_list)
 opt = parse_args(opt_parser)
 
-
-# ==== Setting up pre-requisite functions and objects and initializing option
-# parsing (see setup.R) ====
+# ==== Getting setup objects ====
 
 print("Starting setup...")
 
 tryCatch({
   source("setup.R")
 }, error = function(e){
-  print("Error in the initialization stage")
+  print("Error in the setup stage")
   print(e)
 })
 
 print("Setup complete. Starting data scraping...")
+
+# ==== Starting selenium server ====
+
+# Getting a free port to run the selenium server on
+port <- netstat::free_port()
+
+# Initialize the Selenium Server. 
+system('docker run -d -p 4445:4444 selenium/standalone-firefox')
+remDr <- RSelenium::remoteDriver(
+  remoteServerAddr = "localhost", 
+  port = 4445L, 
+  browserName = "firefox",
+  extraCapabilities = extraCaps
+)
+
+# Assigning the client to a new variable
+remDr <- rD$client
 
 # ==== Running the selenium server to download Hydrometric data for active
 # stations (see scraping.R) ====

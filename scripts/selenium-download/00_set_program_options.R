@@ -10,14 +10,15 @@
 # Path to the firefox webdriver (geckodriver)
 geckopath <- 'geckodriver/geckodriver'
 
-
 # Setting up browser options - see
 # https://www.browserstack.com/docs/automate/selenium/firefox-profile
-extraCaps <- makeFirefoxProfile(
+library(RSelenium)
+extraCaps <- RSelenium::makeFirefoxProfile(
   list(
     ### MAKE SURE THIS POINTS TO THE ZIP DIRECTORY USING AN ABSOLUTE PATH ###
-    "browser.download.dir" = normalizePath('data/zip'),
+    "browser.download.dir" = normalizePath('tempdirs/zip'),
     "browser.download.manager.showWhenStarting" = F,
     "browser.download.manager.focusWhenStarting" = F
   )
 )
+

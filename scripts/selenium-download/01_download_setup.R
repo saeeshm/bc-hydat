@@ -9,20 +9,31 @@
 library(dplyr)
 library(stringr)
 library(bcdata)
+# Temporary libraries
+library(readr)
+library(sf)
 
 # Reading chrome options from the chromeOptions.R script
 source("scripts/selenium-download/00_set_program_options.R")
 
-# ==== Reading data ====
+# ==== Reading Station list ====
 
 # Downloading the BC hydrometric database that indiciates which stations ar
 # presently active (see this link for more information
-# https://github.com/bcgov/hydrometric_stations), and selecting only the active
-# station ids
+# https://github.com/bcgov/hydrometric_stations)
 stations <- bcdc_get_data('4c169515-6c41-4f6a-bd30-19a1f45cad1f') %>% 
-  filter(str_detect(STATION_OPERATING_STATUS, "ACTIVE")) %>% 
-  pull(STATION_NUMBER)
+  st_transform(crs = 4326) %>% 
+  mutate(longitude = st_coordinates(.)[,1],
+         latitude = st_coordinates(.)[,2]) %>% 
+  st_drop_geometry()
 
+# Getting station ids as a vector
+stat_ids <- stations$STATION_NUMBER
+
+# Writing to station-metadata file
+write_csv(stations, 'output/bc_hydat_station_metadata.csv')
+detach(package:sf)
+detach(package:readr)
 # ==== Initializing global variables ====
 
 # Creating an empty vector that stores the ids of the stations for whom the data
@@ -72,28 +83,14 @@ countIter <- 1
 
 # Clearing the required download and data folders of any older files to ensure
 # smooth download and exporting --------
-unlink("data\\zip", recursive = T)
-dir.create("data\\zip")
+unlink(normalizePath("tempdirs/zip"), recursive = T)
+dir.create(normalizePath("tempdirs/zip"))
 
-unlink("data\\download", recursive = T)
-dir.create("data\\download")
+unlink(normalizePath("tempdirs/download"), recursive = T)
+dir.create(normalizePath("tempdirs/download"))
 
-unlink("data\\output", recursive = T)
-dir.create("data\\output")
+unlink(normalizePath("output/selenium-download"), recursive = T)
+dir.create(normalizePath("output/selenium-download"))
 
-# Setting up the Selenium Server --------
 
-# Getting a free port to run the selenium server on
-port <- netstat::free_port()
-
-# Initialize the Selenium Server. Be sure to define the browser you want to use.
-rD <- RSelenium::rsDriver(port = port,
-                          browser = "chrome",
-                          chromever = '98.0.4758.102',
-                          verbose = F,
-                          check = T,
-                          extraCapabilities = eCaps)
-
-# Assigning the client to a new variable
-remDr <- rD$client
 
