@@ -5,4 +5,4 @@
 *.Rproj
 *.csv
 *.txt
-geckodriver/
+options/credentials.json

@@ -1,0 +1,8 @@
+{
+    "hydat_path": "data",
+    "realtime_path": "data/realtime",
+    "selenium_out_path": "data/selenium-download",
+    "station_metadata_path": "data",
+    "postgres_creds_path": "options/credentials.json",
+    "logs_path": "logs"
+}
