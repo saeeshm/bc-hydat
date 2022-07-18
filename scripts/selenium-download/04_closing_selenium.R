@@ -12,16 +12,11 @@ pacman::p_load(tidyverse)
 
 # Closing the window and stopping the server
 remDr$close()
-rD$server$stop()
-# Removing the server object and garbage collecting
-rm(rD)
-gc()
-# Killing the java process that runs it
-system("taskkill /im java.exe /f", intern=FALSE, ignore.stdout=FALSE)
+system("docker stop $(docker ps -q)")
 
 # ==== Clearing the temporary download and zip folders ====
-unlink("data\\zip", recursive = T)
-dir.create("data\\zip")
+unlink(paths$temp_zip_path, recursive = T)
+dir.create(paths$temp_zip_path)
 
-unlink("data\\download", recursive = T)
-dir.create("data\\download")
+unlink(paths$temp_download_path, recursive = T)
+dir.create(paths$temp_download_path)

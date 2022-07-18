@@ -11,18 +11,13 @@ library(tidyhydat)
 library(dplyr)
 library(rjson)
 library(lubridate)
-source('scripts/_postgres_help_funcs.R')
+source('scripts/30day-realtime-update/realtime_help_funcs.R')
 
 # ==== Paths and global variables ====
 
-# Program global options
+# Reading the filepaths JSON that contains all paths for setting up the required
+# directory structure for the program
 paths <- rjson::fromJSON(file = 'options/filepaths.json')
-
-# Published hydat path
-hydat_path <- paths$hydat_path
-
-# Postgres database credentials
-creds_path <- paths$postgres_creds_path
 
 # ==== Creating required project directories ====
 dir_create_soft <- function(path){
@@ -32,36 +27,30 @@ dir_create_soft <- function(path){
     print(paste0('< ',path, ' >', ' already exists!'))
   }
 }
-dir_create_soft('data')
-dir_create_soft('data/realtime')
-dir_create_soft('data/selenium-download')
-dir_create_soft('tempdirs')
-dir_create_soft('tempdirs/download')
-dir_create_soft('tempdirs/zip')
-dir_create_soft('logs')
+
+dir_create_soft(paths$data_path)
+dir_create_soft(paths$realtime_out_path)
+dir_create_soft(paths$selenium_out_path)
+dir_create_soft(paths$tempdir_path)
+dir_create_soft(paths$temp_download_path)
+dir_create_soft(paths$temp_zip_path)
+dir_create_soft(paths$logs_path)
 
 # ==== Downloading published Hydat data ====
-tidyhydat::download_hydat(
-  dl_hydat_here = file.path(hydat_path, 'Hydat.sqlite'), 
-  ask = F
+
+# Path to where published hydat should be stored
+hydat_path <- paths$pub_hydat_out_path
+
+# Downloading published hydat
+my_download_hydat(
+  dl_hydat_here = hydat_path, 
+  download_new = T
 )
 
-# # Getting the date of publication
-# dateJSON <- list()
-# dateJSON$last_publish <- hydat_path %>% 
-#   file.path(., "Hydat.sqlite3") %>% 
-#   tidyhydat::hy_version() %>% 
-#   pull(Date) %>% 
-#   lubridate::ymd_hms() %>% 
-#   lubridate::date() %>% 
-#   as.character()
-# # Saving last date of update as equal to last date of publication as these are
-# # the same when setting up the project
-# dateJSON$last_update <- dateJSON$last_publish
-# dateJSON <- toJSON(dateJSON)
-# write(dateJSON, file = 'options/date.json')
-
 # ==== Initializing postgres database ====
+
+# Path to postgres database credentials
+creds_path <- paths$postgres_creds_path
 
 # Reading credentials
 creds <- fromJSON(file = creds_path)
@@ -77,6 +66,7 @@ conn <- dbConnect(
 
 # Calling the reset dbase function, which initialzes the dbase if not already
 # present
+reset_hydat_postgres(conn, creds, hydat_path)
 
 # Closing connection
 dbDisconnect(conn)

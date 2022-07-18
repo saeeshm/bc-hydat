@@ -13,10 +13,10 @@ print("Server closed. Starting data export...")
 
 # Once all the data has been scraped, writing the master datasets to csvs:
 for (name in names(masters)){
-  path <- paste0("data\\output\\BC",name,"_current.csv")
+  path <- paste0(paths$selenium_out_path, '/', name, "_current.csv")
   write.csv(masters[[name]], path)
 }
 
 # Writing the problem and summary tables
-write.csv(summ_table, "data\\output\\extraction_summary.csv")
-write.csv(distinct(prob_stations), "data\\output\\problem_stations.csv")
+write.csv(summ_table, file.path(paths$selenium_out_path, "extraction_summary.csv"))
+write.csv(distinct(prob_stations), file.path(paths$selenium_out_path, "problem_stations.csv"))

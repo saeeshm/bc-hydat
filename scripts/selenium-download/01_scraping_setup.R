@@ -9,16 +9,16 @@
 library(dplyr)
 library(stringr)
 library(bcdata)
-# Temporary libraries
 library(readr)
+library(rjson)
 library(sf)
 
-# Reading chrome options from the chromeOptions.R script
+# Reading browser options
 source("scripts/selenium-download/00_set_program_options.R")
 
 # ==== Reading Station list ====
 
-# Downloading the BC hydrometric database that indiciates which stations ar
+# Downloading the BC hydrometric database that indicates which stations ar
 # presently active (see this link for more information
 # https://github.com/bcgov/hydrometric_stations)
 stations <- bcdc_get_data('4c169515-6c41-4f6a-bd30-19a1f45cad1f') %>% 
@@ -31,9 +31,8 @@ stations <- bcdc_get_data('4c169515-6c41-4f6a-bd30-19a1f45cad1f') %>%
 stat_ids <- stations$STATION_NUMBER
 
 # Writing to station-metadata file
-write_csv(stations, 'output/bc_hydat_station_metadata.csv')
-detach(package:sf)
-detach(package:readr)
+write_csv(stations, paths$station_metadata_path)
+
 # ==== Initializing global variables ====
 
 # Creating an empty vector that stores the ids of the stations for whom the data
@@ -83,14 +82,14 @@ countIter <- 1
 
 # Clearing the required download and data folders of any older files to ensure
 # smooth download and exporting --------
-unlink(normalizePath("tempdirs/zip"), recursive = T)
-dir.create(normalizePath("tempdirs/zip"))
+unlink(normalizePath(paths$temp_zip_path), recursive = T)
+dir.create(normalizePath(paths$temp_zip_path))
 
-unlink(normalizePath("tempdirs/download"), recursive = T)
-dir.create(normalizePath("tempdirs/download"))
+unlink(normalizePath(paths$temp_download_path), recursive = T)
+dir.create(normalizePath(paths$temp_download_path))
 
-unlink(normalizePath("output/selenium-download"), recursive = T)
-dir.create(normalizePath("output/selenium-download"))
+unlink(normalizePath(paths$selenium_out_path), recursive = T)
+dir.create(normalizePath(paths$selenium_out_path))
 
 
 

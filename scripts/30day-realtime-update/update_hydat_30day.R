@@ -12,8 +12,7 @@ library(RSQLite)
 library(optparse)
 library(tidyhydat)
 library(rjson)
-source("scripts/_hydat_help_funcs.R")
-source("scripts/_postgres_help_funcs.R")
+source("scripts/_help_funcs.R")
 
 # ==== Initializing option parsing ====
 option_list <-  list(
@@ -41,7 +40,7 @@ scraped_data_path <- paths$selenium_out_path
 
 # Folder where the realtime data files will be stored (i.e outputs from this
 # script)
-realtime_path <- paths$realtime_path
+realtime_path <- paths$realtime_out_path
 
 # Status report path
 report_path <- file.path(paths$logs_path, 'last_update_report.txt')

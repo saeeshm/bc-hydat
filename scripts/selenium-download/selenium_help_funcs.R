@@ -36,7 +36,10 @@ transformNames <- function(x){
 formatDataAsDaily <- function(df, station, varName){
   df <- df %>% 
     select(Date = contains("Date"), Parameter, 
-           Value = contains("Value"), everything()) %>% 
+           Value = contains("Value"), 
+           Approval = contains('Approval'), 
+           Grade = contains('Grade'),
+           everything()) %>% 
     mutate("STATION_NUMBER" = station) %>% 
     mutate(Parameter = as.character(Parameter)) %>% 
     mutate(Parameter = case_when(varName == "precip" ~ "Precipitation",
