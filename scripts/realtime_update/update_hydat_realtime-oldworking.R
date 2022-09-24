@@ -12,7 +12,8 @@ library(RSQLite)
 library(optparse)
 library(tidyhydat)
 library(rjson)
-source("scripts/_help_funcs.R")
+soure('scripts/_fixed_tidyhdat_dbase_download.R')
+source("scripts/realtime_update/update_help_funcs.R")
 
 # ==== Initializing option parsing ====
 option_list <-  list(
@@ -33,14 +34,14 @@ paths <- rjson::fromJSON(file = 'options/filepaths.json')
 creds_path <- paths$postgres_creds_path
 
 # Folder containing published hydat.sqlite file
-hydat_path <- paths$hydat_path
+hydat_dir <- paths$pub_hydat_out_path
 
 # Folder containing data scraped using the selenium-download process
 scraped_data_path <- paths$selenium_out_path
 
 # Folder where the realtime data files will be stored (i.e outputs from this
 # script)
-realtime_path <- paths$realtime_out_path
+realtime_dir <- paths$realtime_out_path
 
 # Status report path
 report_path <- file.path(paths$logs_path, 'last_update_report.txt')
@@ -62,33 +63,41 @@ conn <- dbConnect(
 # ==== Checking published hydat status ====
 
 # Downloading a new hydat.sqlite if published
-my_download_hydat(dl_hydat_here = hydat_path, download_new = T)
+my_download_hydat(dl_hydat_here = hydat_dir, download_new = T)
 
+# Getting file path to the published hydat version
+pub_hydat_path <- list.files(hydat_dir, pattern = 'Hydat_sqlite.+', 
+                              full.names = T)
+# Getting path to the realtime-updated hydat version
+realtime_hydat_path <- paste0(realtime_dir, "/Hydat_realtime.sqlite3")
+  
 # Creating a realtime version of the hydat database if it doesn't already exist
 file.copy(
-  from = paste0(hydat_path, "/Hydat.sqlite3"), 
-  to = paste0(realtime_path, "/Hydat_realtime.sqlite3"), 
+  from = pub_hydat_path, 
+  to = realtime_hydat_path, 
   overwrite = F
 )
 
 # Checking the publication dates
-published_date <- hy_version(paste0(hydat_path,"/Hydat.sqlite3"))$Date
-curr_date <- hy_version(paste0(realtime_path,"/Hydat_realtime.sqlite3"))$Date
+published_date <- hy_version(pub_hydat_path)$Date
+realtime_date <- hy_version(realtime_hydat_path)$Date
 
 # If a new version has been published, overwriting the hydat_realtime dataset
 # and the postgres database with the new published data. Any realtime data past
 # the published date will be added later
-if(published_date != curr_date){
+if(published_date != realtime_date){
   print('A new hydat version has been published!')
   # Updating hydat_realtime.sqlite
-  print("Resetting the Hydat_current dataset")
-  file.copy(from = paste0(hydat_path, "/Hydat.sqlite3"), 
-            to = paste0(realtime_path, "/Hydat_realtime.sqlite3"), 
+  print("Resetting the Hydat_realtime dataset")
+  file.copy(from = pub_hydat_path, 
+            to = realtime_hydat_path, 
             overwrite = T)
   
   # Resetting postgres database with new hydat data
   print('Resetting the bchydat postgres schema')
-  reset_hydat_postgres(conn, creds, hydat_path)
+  reset_hydat_postgres(conn, creds, pub_hydat_path)
+}else{
+  'The current hydat version is the most recently published'
 } 
 
 # ==== Getting realtime data ====
@@ -114,8 +123,8 @@ level_30day <- bc_realtime %>%
 # reading it here
 if(opt$scraped){
   # Reading scraped data
-  realtime_flow <- read_csv(paste0(scraped_data_path, "/BCflow_realtime.csv"), 
-                       col_types='Dcdc') %>% 
+  realtime_flow <- read_csv(paste0(scraped_data_path, "/flow_current.csv"), 
+                       col_types='Dcdccc') %>% 
     select(STATION_NUMBER, Date, Parameter, Value) %>% 
     mutate(pub_status = 'Unpublished') %>% 
     # Joining it with 30-day download data
@@ -125,9 +134,10 @@ if(opt$scraped){
     distinct(Date, .keep_all = T)
   
   # Same for level data
-  realtime_level <- read.csv(paste0(scraped_data_path, "/BClevel_prim_realtime.csv"), 
-                            col_types='Dcdc') %>% 
+  realtime_level <- read_csv(paste0(scraped_data_path, "/level_prim_current.csv"), 
+                            col_types='Dcdccc') %>% 
     select(STATION_NUMBER, Date, Parameter, Value) %>% 
+    mutate(Parameter = 'Level') %>% 
     mutate(pub_status = 'Unpublished') %>% 
     bind_rows(level_30day) %>% 
     group_by(STATION_NUMBER, Date) %>% 
@@ -139,9 +149,14 @@ if(opt$scraped){
 
 # ==== Removing potential duplication from downloaded realtime data ====
 
+# Getting the earliest date of the update data
+mindate = min(c(realtime_flow$Date, realtime_level$Date))
+
 # Reading all unpublished data if present
-BCflow <- dbGetQuery(conn, "select * from bchydat.flow where pub_status = 'Unpublished'")
-BClevel <- dbGetQuery(conn, "select * from bchydat.level where pub_status = 'Unpublished'")
+BCflow <- dbGetQuery(conn, 
+                     paste0("select * from bchydat.flow where \"Date\" >= '", mindate, "'"))
+BClevel <- dbGetQuery(conn, 
+                      paste0("select * from bchydat.level where \"Date\" >= '", mindate, "'"))
 
 # Locating all the data that isn't already in the Hydat dataset using an
 # anti-join, to ensure that there are no duplicates. This is the "new" data
@@ -167,7 +182,7 @@ new_level_hydat <- format_hydat_level(new_level %>% select(-pub_status))
 # Hydat.sqlite ----------
 
 # opening sqlite connections
-connSqlite <- dbConnect(RSQLite::SQLite(), paste0(hydat_path, "/Hydat_current.sqlite3"))
+connSqlite <- dbConnect(RSQLite::SQLite(), paste0(realtime_dir, "/Hydat_realtime.sqlite3"))
 
 # Appending unpublished data to hydat
 dbWriteTable(connSqlite, "DLY_FLOWS", new_flow_hydat, append = T, overwrite = F)
@@ -200,10 +215,10 @@ sink(report_path, append = F)
 cat("Hydat database update status:\n")
 cat("\n")
 cat("Date of last HYDAT publication (hydat.sqlite):", as.character(published_date), "\n")
-cat("Last successful realtime update (hydat_realtime.sqlite):", as.character(curr_date), "\n")
+cat("Last successful realtime update (hydat_realtime.sqlite):", as.character(curr_time), "\n")
 cat("\n")
-cat("Update is ahead of published data by", round(as.numeric(curr_date - published_date), 2), "days")
+cat("Update is ahead of published data by", round(as.numeric(curr_time - published_date), 2), "days")
 sink()
-
+ 
 
 

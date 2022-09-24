@@ -14,7 +14,7 @@ library(rjson)
 library(sf)
 
 # Reading browser options
-source("scripts/selenium-download/00_set_program_options.R")
+source("scripts/selenium_download/00_set_program_options.R")
 
 # ==== Reading Station list ====
 

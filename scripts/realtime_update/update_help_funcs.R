@@ -1,13 +1,13 @@
-# !usr/bin/env Rscript
-
 # Author: Saeesh Mangwani
-# Date: 2020-06-25
+# Date: 2022-08-15
+
 # Description: Helper functions for the BC hydat download and scraping programs
 
 # ==== Loading libraries ====
 library(dplyr)
 library(tidyr)
 library(stringr)
+library(readr)
 library(tidyhydat)
 library(DBI)
 library(RPostgres)
@@ -201,110 +201,88 @@ format_hydat_level <- function(df){
   return(df)
 }
 
-# A customized  download_hydat function to take an argument for
-# whether or not download a new hydat dataset rather than ask the user in the
-# interactive prompt (prevents stoppage when running from the command line)
-my_download_hydat <- function (dl_hydat_here = NULL, download_new = T){
-  if (is.null(dl_hydat_here)) {
-    dl_hydat_here <- hy_dir()
-  }else {
-    if (!dir.exists(dl_hydat_here)) {
-      dir.create(dl_hydat_here)
-      message(crayon::blue("You have downloaded hydat to", 
-                           dl_hydat_here))
-      message(crayon::blue("See ?hy_set_default_db to change where tidyhydat looks for HYDAT"))
-    }
-  }
-  on.exit(closeAllConnections())
-  ans <- download_new
-  if (!ans) {
-    stop("Maybe another day...", call. = FALSE)
-  }
-  info(paste0("Downloading HYDAT.sqlite3 to ", crayon::blue(dl_hydat_here)))
-  hydat_path <- file.path(dl_hydat_here, "Hydat.sqlite3")
-  if (file.exists(hydat_path)) {
-    existing_hydat <- hy_version(hydat_path) %>% 
-      dplyr::mutate(condensed_date = paste0(substr(.data$Date,1, 4), 
-                                            substr(.data$Date, 6, 7), 
-                                            substr(.data$Date, 9, 10))) %>% 
-      dplyr::pull(.data$condensed_date)
-  }else {
-    existing_hydat <- "HYDAT not present"
-  }
-  base_url <- "http://collaboration.cmc.ec.gc.ca/cmc/hydrometrics/www/"
-  network_check(base_url)
-  x <- httr::GET(base_url)
-  httr::stop_for_status(x)
-  new_hydat <- substr(gsub("^.*\\Hydat_sqlite3_", "", 
-                           httr::content(x, "text")), 1, 8)
-  if (new_hydat == existing_hydat) {
-    handle_error(stop(not_done(paste0("The existing local version of hydat, published on ", 
-                                      lubridate::ymd(existing_hydat), ", is the most recent version available."))))
-    return(invisible(T))
-  }else {
-    info(paste0("Downloading version of HYDAT created on ", 
-                crayon::blue(lubridate::ymd(new_hydat))))
-  }
+# Updates flow data on the postgres database with newly published data from the
+# hydat.sqlite database
+update_new_published <- function(pub_hydat_path, creds, conn){
+  print('Reading data from published Hydat...')
+  # Station metadata
+  hystations <- hy_stations(hydat_path = pub_hydat_path, 
+                            prov_terr_state_loc = 'BC') %>% 
+    tibble()
+  # Published flow data
+  hyflow <- hy_daily_flows(hydat_path = pub_hydat_path, 
+                           prov_terr_state_loc = 'BC') %>% 
+    tibble() %>% 
+    mutate(pub_status = 'Published')
+  # Published level data
+  hylevel <- hy_daily_levels(hydat_path = pub_hydat_path, 
+                            prov_terr_state_loc = 'BC') %>% 
+    tibble() %>% 
+    mutate(pub_status = 'Published')
   
-  url <- paste0(base_url, "Hydat_sqlite3_", new_hydat, 
-                ".zip")
-  tmp <- tempfile("hydat_")
-  res <- httr::GET(url, httr::write_disk(tmp), httr::progress("down"), 
-                   httr::user_agent("https://github.com/ropensci/tidyhydat"))
-  on.exit(file.remove(tmp))
-  httr::stop_for_status(res)
-  if (file.exists(tmp)) {
-    info("Extracting HYDAT")
-  }
+  # Updating the station metadata file
+  write_csv(hystations, 'data/bc_hydat_station_metadata.csv', append = F)
   
-  utils::unzip(tmp, exdir = dl_hydat_here, overwrite = TRUE)
+  # Reading all data from the postgres database
+  print("Reading existing data from postgres...")
+  dbflow <- dbGetQuery(conn, 
+                       paste0("select * from ", creds$schema, ".flow"))
+  dblevel <- dbGetQuery(conn, 
+                        paste0("select * from ", creds$schema, ".level"))
   
-  if (file.exists(hydat_path)) {
-    congrats("HYDAT successfully downloaded")
-  }else{
-    (not_done("HYDAT not successfully downloaded"))
-  }
-  return(invisible(TRUE))
-}
-
-# Passing the custom function to the tidyhydat namespace to allow it use all of
-# the namespace dependencies when being called
-environment(my_download_hydat) <- asNamespace('tidyhydat')
-assignInNamespace("download_hydat", my_download_hydat, ns = "tidyhydat")
-
-# Resets the hydat database with a newly published version of the hydat.sqlite
-# database
-reset_hydat_postgres <- function(conn, creds, hydat_path){
+  # Getting all rows from the database that don't exist in the published hydat
+  # dataset (i.e there are realtime data that shouldn't be overwritten)
+  print('Filtering un-changed realtime data...')
+  unpub_flow <- anti_join(dbflow, hyflow, 
+                          by = c('STATION_NUMBER', 'Date', 'Parameter'))
+  unpub_level <- anti_join(dblevel, hylevel, 
+                          by = c('STATION_NUMBER', 'Date', 'Parameter'))
   
-  print('Reading published flow and level data...')
-  flow <- hy_daily_flows(hydat_path = paste0(hydat_path,"/Hydat.sqlite3"), 
-                         prov_terr_state_loc = "BC") %>% tibble()
-  level <- hy_daily_levels(hydat_path = paste0(hydat_path,"/Hydat.sqlite3"), 
-                           prov_terr_state_loc = "BC") %>% tibble()
+  # Joining unpublished with published data to get a complete data set,
+  # integrating any changes from the new publication
+  bcflow <- bind_rows(hyflow, unpub_flow)
+  bclevel <- bind_rows(hylevel, unpub_level)
   
-  
-  print('Dropping existing tables and schema...')
-  dbExecute(conn, 'drop table if exists bchydat.flow')
-  dbExecute(conn, 'drop table if exists bchydat.level')
-  dbExecute(conn, 'drop schema if exists bchydat ')
-  
-  print('Re-creating schema...')
-  dbExecute(conn, 'create schema bchydat')
-  dbExecute(conn, paste0('grant all on schema ', creds$schema,
-                         ' to postgres, ', creds$user, ';'))
-  
-  print('Posting newly published hydat data...')
+  # Resetting postgres tables with the newly published data
+  print('Writing updated database to postgres...')
+  dbExecute(conn, paste0('drop table if exists ', creds$schema,'.flow'))
   dbWriteTable(conn, 
                DBI::Id(schema = creds$schema, table = "flow"),
-               # Adding a column indicating publication status
-               flow %>% mutate(pub_status = 'Published'),
+               bcflow,
                append = F,
                overwrite = T)
+  dbExecute(conn, paste0('drop table if exists ', creds$schema,'.level'))
   dbWriteTable(conn, 
                DBI::Id(schema = creds$schema, table = "level"),
-               # Adding a column indicating publication status
-               level %>% mutate(pub_status = 'Published'),
+               bclevel,
                append = F,
                overwrite = T)
-  print('Reset complete!')
+  
+  # Overwriting the realtime version of the hydat database with the newly
+  # published version:
+  # print('Writing updated database to hydat_realtime.sqlite...')
+  # file.copy(
+  #   from = pub_hydat_path, 
+  #   to = realtime_hydat_path, 
+  #   overwrite = T
+  # )
+  
+  # Adding unpublished data, formatted to Hydat standard
+  # connSqlite <- dbConnect(RSQLite::SQLite(), realtime_hydat_path)
+  # 
+  # # Appending unpublished data to hydat
+  # dbWriteTable(connSqlite, 
+  #              "DLY_FLOWS", 
+  #              format_hydat_flow(unpub_flow %>% select(-pub_status)), 
+  #              append = T, overwrite = F)
+  # dbWriteTable(connSqlite, 
+  #              "DLY_LEVELS", 
+  #              format_hydat_level(unpub_level %>% select(-pub_status)), 
+  #              append = T, overwrite = F)
+  # # Closing connection
+  # dbDisconnect(connSqlite)
+  
+  # Print return
+  return('Database updates complete')
 }
+

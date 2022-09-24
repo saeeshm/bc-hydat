@@ -4,19 +4,15 @@
 # Date: 2020-06-19
 # Description: Exporting master datasets following data download
 
-# ==== Loading libraries ====
-if (!require("pacman")) install.packages("pacman")
-pacman::p_load(tidyverse)
-
 # ==== Exporting Data ====
-print("Server closed. Starting data export...")
+print("Starting data export...")
 
 # Once all the data has been scraped, writing the master datasets to csvs:
 for (name in names(masters)){
   path <- paste0(paths$selenium_out_path, '/', name, "_current.csv")
-  write.csv(masters[[name]], path)
+  readr::write_csv(masters[[name]], path)
 }
 
 # Writing the problem and summary tables
-write.csv(summ_table, file.path(paths$selenium_out_path, "extraction_summary.csv"))
-write.csv(distinct(prob_stations), file.path(paths$selenium_out_path, "problem_stations.csv"))
+readr::write_csv(summ_table, file.path(paths$selenium_out_path, "extraction_summary.csv"))
+readr::write_csv(dplyr::distinct(prob_stations), file.path(paths$selenium_out_path, "problem_stations.csv"))

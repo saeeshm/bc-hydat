@@ -22,6 +22,7 @@ for (station in stations_iter) {
   # Trying a download for each station, and skipping that specific station in
   # case there is a data error)
   tryCatch({
+    print('Navigating to home url...')
     # Navigating to the page and downloading the data --------
     # Creating the url: Note that we have already defined the date range as well
     # as station id we want through using this url (see setup.R)
@@ -48,7 +49,7 @@ for (station in stations_iter) {
     # Checking to see if there is a disclaimer action and if yes, clicking to
     # agree with the conditions. If not, proceeding
     tryCatch({
-      webElem <- remDr$findElement(using = 'name', value = "disclaimer_action")
+      webElem <- suppressMessages(remDr$findElement(using = 'name', value = "disclaimer_action"))
       webElem$clickElement()
     },error = function(e){
       invisible()
@@ -58,9 +59,28 @@ for (station in stations_iter) {
     
     # Navigtating to the download button on the url and then clicking on it.
     # Adding to the prob list in case of any issues.
+    print('Navigating to download page...')
     tryCatch({
-      remDr$mouseMoveToLocation(webElement = remDr$findElement(using = 'id', value = "download"))
-      remDr$click()
+      attempt <- 0
+      elemIsDisplayed <- T
+      # If the button is successfully clicked or there are more than 3 attempts,
+      # breaking the loop
+      while(attempt < 4 || elemIsDisplayed){
+        tryCatch({
+          # Finding the download data button and clicking it
+          webElem = remDr$findElement(using = 'id', value = "download")
+          remDr$mouseMoveToLocation(webElement = webElem)
+          remDr$click()
+          # Saving whether the download button is still displayed (i.e has it
+          # been successfully clicked or not)
+          elemIsDisplayed <<- suppressMessages(webElem$isElementDisplayed()[[1]])
+          attempt <<- attempt + 1
+        }, error = function(e){
+          elemIsDisplayed <<- F
+          attempt <<- 5
+        })
+      }
+      if (attempt == 4 && elemIsDisplayed) stop('Exceeded max attempts to try and reach the download page')
     },error = function(e){
       prob_stations <<- prob_stations %>% bind_rows(list("station_id" = station, 
                                                          "issue" = "issue with getting to the download links on the station's page"))
@@ -90,6 +110,7 @@ for (station in stations_iter) {
     
     # Iterating through all the found links to download and rename the data in a
     # consistent fashion
+    print('Downloading files...')
     for(i in seq_along(fileElem)){
       
       # Get the current time
@@ -213,7 +234,7 @@ for (station in stations_iter) {
     }
     
     # Formatting, processing and storing the data --------
-    
+    print('Formatting downloaded data and saving...')
     # Reading in each each csv that was generated and assigning it to a new
     # variable Getting the number of files pulled, their names and a generated
     # list of object names to be associated with each name
