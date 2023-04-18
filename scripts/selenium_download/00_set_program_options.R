@@ -15,8 +15,8 @@ extraCaps <- RSelenium::makeFirefoxProfile(
     # Tells firefox to default downloads to a custom folder -
     # https://stackoverflow.com/questions/37154746/how-to-avoid-window-download-popup-in-firefox-use-java-selenium-i-need-download
     "browser.downLoad.folderList" = 2,
-    # Path to custom download folder - MAKE SURE THIS POINTS TO THE ZIP
-    # DIRECTORY USING AN ABSOLUTE PATH
+    # Path to custom download folder - this lives inside the docker container,
+    # don't change it
     "browser.download.dir" = '/home/seluser/Downloads',
     # Mix of options to tell firefox to disable the download helper 
     "browser.helperApps.neverAsk.saveToDisk" = "application/zip, text/csv",

@@ -46,11 +46,11 @@ hydat_dir <- paths$pub_hydat_out_path
 # Downloading published hydat
 my_download_hydat(
   dl_hydat_here = hydat_dir, 
-  download_new = T
+  ask = F
 )
 
 # Getting path to downloaded dataset
-hydat_path <- list.files(hydat_dir, pattern = 'Hydat_sqlite.*', full.names = T)
+hydat_path <- list.files(hydat_dir, pattern = '(H|h)ydat', full.names = T)
 
 # ==== Initializing/resetting postgres database ====
 

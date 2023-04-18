@@ -1,10 +1,13 @@
 #!/usr/bin/env Rscript
 
-# Author: Saeesh Mangwani Date: 2020-06-12 Description: Running the Selenium web
-# scraper to download realtime hydrometric data from the BC hydat database. This
-# program gathers all verified and unverified data for each station upto 18
-# months prior to the current date. To get only verified data, or to get just
-# the past 30-days of realtime data more quickly, see the `tidyhydat` library.
+# Author: Saeesh Mangwani 
+# Date: 2020-06-12 
+
+# Description: Running the Selenium web scraper to download realtime hydrometric
+# data from the BC hydat database. This program gathers all verified and
+# unverified data for each station upto 18 months prior to the current date. To
+# get only verified data, or to get just the past 30-days of realtime data more
+# quickly, see the `tidyhydat` library.
 
 # ==== Loading libraries ====
 library(dplyr)
@@ -34,7 +37,7 @@ option_list <-  list(
 # Parse any provided options and store them in a list
 opt_parser = OptionParser(option_list=option_list)
 opt = parse_args(opt_parser)
-# opt$months <- 3
+# opt$months <- 4
 
 # Reading file paths from JSON
 paths <- rjson::fromJSON(file = 'options/filepaths.json')
@@ -75,7 +78,7 @@ tryCatch({
                   '--name hydat_selenium_scraper ',
                   '-p 5901:5900 ', 
                   '-p 127.0.0.1:4445:4444 ', 
-                  '-v ', normalizePath(paths$temp_zip_path), ':/home/seluser/Downloads ',
+                  '-v ', normalizePath(paths$temp_zip_path), ':/home/seluser/Downloads:rw,z ',
                   'selenium/standalone-firefox-debug'))
   }
   system('docker ps')

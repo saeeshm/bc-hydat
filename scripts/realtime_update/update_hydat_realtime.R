@@ -72,7 +72,7 @@ conn <- dbConnect(
 my_download_hydat(dl_hydat_here = hydat_dir, ask = F)
 
 # Getting file path to the published hydat version
-pub_hydat_path <- list.files(hydat_dir, pattern = 'Hydat_sqlite.+', 
+pub_hydat_path <- list.files(hydat_dir, pattern = '(H|h)ydat', 
                               full.names = T)
 # Getting path to the realtime-updated hydat version
 # realtime_hydat_path <- paste0(realtime_dir, "/Hydat_realtime.sqlite3")

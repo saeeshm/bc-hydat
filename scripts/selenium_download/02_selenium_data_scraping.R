@@ -2,7 +2,9 @@
 
 # Author: Saeesh Mangwani
 # Date: 2020-06-19
-# Description: Running the Selenium Server to download and organize Hydrometric data
+
+# Description: Running the Selenium Server to download and organize Hydrometric
+# data
 
 # ==== Scraping data for all active stations ====
 
@@ -122,7 +124,7 @@ for (station in stations_iter) {
       # and there is no success, trying again. Essentially the point is for
       # Selenium to click again in case the download times out (We set the
       # timeout to 30 seconds). Catching any errors.
-      while(timeVar < 45 & success == F){
+      while(timeVar < 30 & success == F){
         # Resetting the time variable to measure the time elapsed from the start
         timeVar <- as.numeric(format(Sys.time(), "%s")) - start_user_time
         error <- F
