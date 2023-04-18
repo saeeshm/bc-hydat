@@ -5,3 +5,7 @@
 *.Rproj
 *.csv
 *.txt
+tempdirs/
+data/
+logs/
+options/credentials.json

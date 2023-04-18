@@ -2,27 +2,29 @@
 
 # Author: Saeesh Mangwani
 # Date: 2020-06-19
-# Description: Running the Selenium Server to download and organize Hydrometric data
 
-# ==== Ensuring libraries ====
-if (!require("pacman")) install.packages("pacman")
-pacman::p_load(tidyverse, bcdata, netstat, RSelenium, optparse, zip)
+# Description: Running the Selenium Server to download and organize Hydrometric
+# data
 
-# ==== Iterating through all of the active stations using the selenium server to
-# scrape data ====
+# ==== Scraping data for all active stations ====
 
-# Checking user input to define how many stations to iterate over (i.e whether a
-# sample was requested or not) and saving the correct number of stations in an
-# iteration variable
-stations_iter <- unlist(ifelse(is.infinite(opt$sample), 
-                               list(stations), 
-                               list(sample(stations, opt$sample))))
+# From the station table
+stations_iter <- stations %>% 
+  # Filtering stations that are not active
+  filter(STATION_OPERATING_STATUS != 'DISCONTINUED') %>% 
+  # Sampling stations if a sample was requested
+  sample_n(ifelse(opt$sample > nrow(.), nrow(.), opt$sample)) %>% 
+  arrange(STATION_NUMBER) %>% 
+  # Getting station IDs as an iterable vector
+  pull(STATION_NUMBER)
 
 # Using the iteration variable to loop over all the requested stations
+countIter <- 0
 for (station in stations_iter) {
   # Trying a download for each station, and skipping that specific station in
-  # case there is a fata error)
+  # case there is a data error)
   tryCatch({
+    print('Navigating to home url...')
     # Navigating to the page and downloading the data --------
     # Creating the url: Note that we have already defined the date range as well
     # as station id we want through using this url (see setup.R)
@@ -49,7 +51,7 @@ for (station in stations_iter) {
     # Checking to see if there is a disclaimer action and if yes, clicking to
     # agree with the conditions. If not, proceeding
     tryCatch({
-      webElem <- remDr$findElement(using = 'name', value = "disclaimer_action")
+      webElem <- suppressMessages(remDr$findElement(using = 'name', value = "disclaimer_action"))
       webElem$clickElement()
     },error = function(e){
       invisible()
@@ -59,9 +61,28 @@ for (station in stations_iter) {
     
     # Navigtating to the download button on the url and then clicking on it.
     # Adding to the prob list in case of any issues.
+    print('Navigating to download page...')
     tryCatch({
-      remDr$mouseMoveToLocation(webElement = remDr$findElement(using = 'id', value = "download"))
-      remDr$click()
+      attempt <- 0
+      elemIsDisplayed <- T
+      # If the button is successfully clicked or there are more than 3 attempts,
+      # breaking the loop
+      while(attempt < 4 || elemIsDisplayed){
+        tryCatch({
+          # Finding the download data button and clicking it
+          webElem = remDr$findElement(using = 'id', value = "download")
+          remDr$mouseMoveToLocation(webElement = webElem)
+          remDr$click()
+          # Saving whether the download button is still displayed (i.e has it
+          # been successfully clicked or not)
+          elemIsDisplayed <<- suppressMessages(webElem$isElementDisplayed()[[1]])
+          attempt <<- attempt + 1
+        }, error = function(e){
+          elemIsDisplayed <<- F
+          attempt <<- 5
+        })
+      }
+      if (attempt == 4 && elemIsDisplayed) stop('Exceeded max attempts to try and reach the download page')
     },error = function(e){
       prob_stations <<- prob_stations %>% bind_rows(list("station_id" = station, 
                                                          "issue" = "issue with getting to the download links on the station's page"))
@@ -76,8 +97,9 @@ for (station in stations_iter) {
     fileElem <- remDr$findElements(using = "xpath", '//section//a[text()="Comma Separated Values"]')
     
     if( (length(headElem) == 0) | (length(fileElem) == 0) ){
-      prob_stations <<- prob_stations %>% bind_rows(list("station_id" = station, 
-                                                         "issue" = "Unable to find download links/no downloadable data found"))
+      prob_stations <<- prob_stations %>% 
+        bind_rows(list("station_id" = station, 
+                       "issue" = "Unable to find download links/no downloadable data found"))
       next
     }
     
@@ -86,10 +108,11 @@ for (station in stations_iter) {
     
     # Creating a directory for the station we're getting data for (if the
     # directory already exists a warning is printed but nothing new happens
-    dir.create(paste0("data\\download\\",station))
+    dir.create(file.path(paths$temp_download_path, station))
     
     # Iterating through all the found links to download and rename the data in a
     # consistent fashion
+    print('Downloading files...')
     for(i in seq_along(fileElem)){
       
       # Get the current time
@@ -101,7 +124,7 @@ for (station in stations_iter) {
       # and there is no success, trying again. Essentially the point is for
       # Selenium to click again in case the download times out (We set the
       # timeout to 30 seconds). Catching any errors.
-      while(timeVar < 45 & success == F){
+      while(timeVar < 30 & success == F){
         # Resetting the time variable to measure the time elapsed from the start
         timeVar <- as.numeric(format(Sys.time(), "%s")) - start_user_time
         error <- F
@@ -142,10 +165,10 @@ for (station in stations_iter) {
         
         # Waiting for the download to complete. Thus waiting either for all
         # these conditions to be met or for the time limit of 10s to elapse
-        while( (length(list.files(path = "data\\zip")) == 0) & (as.numeric(format(Sys.time(), "%s")) - temp_time) < 15) invisible()
+        while( (length(list.files(path = paths$temp_zip_path)) == 0) & (as.numeric(format(Sys.time(), "%s")) - temp_time) < 15) invisible()
         
         # If a file is downloaded and it is not a timeout - 
-        if((length(list.files(path = "data\\zip")) > 0)){
+        if((length(list.files(path = paths$temp_zip_path)) > 0)){
           # print("got a file") Waiting for the complete download by checking
           # for the right extension - first creating some helper variables
           downloaded <- F
@@ -154,7 +177,7 @@ for (station in stations_iter) {
           # timeout, try again
           while(!downloaded & (as.numeric(format(Sys.time(), "%s")) - temp_time) < 30 ){
             tryCatch({
-              while( (length(list.files(path = "data\\zip")) == 0) || !str_detect(list.files(path = "data\\zip"), "(.zip)$")) {
+              while( (length(list.files(path = paths$temp_zip_path)) == 0) || !str_detect(list.files(path = paths$temp_zip_path), "(.zip)$")) {
                 invisible()
               }
               # If we make it through the try block, resetting the success
@@ -181,7 +204,7 @@ for (station in stations_iter) {
       
       # If the loop times out and there is still no zip file, flagging this
       # station id and skipping out of this iteration
-      if ((length(list.files(path = "data\\zip")) == 0)){
+      if ((length(list.files(path = paths$temp_zip_path)) == 0)){
         prob_stations <<- prob_stations %>% 
           bind_rows(prob_stations, list("station_id" = station,
                                         "issue" = "File download timeout, file still exists"))
@@ -190,38 +213,44 @@ for (station in stations_iter) {
       
       # Once the file is downloaded, unzipping the file to a directory named
       # with the station Id to get the csv for this data
-      utils::unzip(zipfile = paste0("data\\zip\\", 
-                                    list.files(path = "data\\zip", pattern = ".zip$")), 
-                   exdir = paste0("data\\download\\",station), 
-                   overwrite = T)
+      utils::unzip(zipfile = file.path(
+        paths$temp_zip_path, 
+        list.files(path = paths$temp_zip_path, pattern = ".zip$")
+      ), 
+      exdir = file.path(paths$temp_download_path, station), 
+      overwrite = T)
       # print("File unzipped")
       
       # Clearing the zip folder to prepare for the next iteration
-      file.remove(paste0("data\\zip\\",list.files(path = "data\\zip")))
+      file.remove(paste0(paths$temp_zip_path, '/', list.files(path = paths$temp_zip_path)))
       # print("Zip File removed")
       
       # Renaming the extracted data files to clarify the attribute they contain
       # data for using the header elements extracted before
-      oldfile <- list.files(path = paste0("data\\download\\",station), pattern = station)
-      file.rename(from = paste0("data\\download\\",station,"\\", oldfile), 
-                  to = paste0("data\\download\\",station,"\\",headElem[[i]]$getElementText(),".csv"))
+      oldfile <- list.files(path = file.path(paths$temp_download_path, station), pattern = station)
+      file.rename(from = file.path(paths$temp_download_path, station, oldfile), 
+                  to = paste0(paths$temp_download_path, '/', 
+                              station, '/', 
+                              headElem[[i]]$getElementText(),".csv"))
       # print("Data file renamed")
     }
     
     # Formatting, processing and storing the data --------
-    
+    print('Formatting downloaded data and saving...')
     # Reading in each each csv that was generated and assigning it to a new
     # variable Getting the number of files pulled, their names and a generated
     # list of object names to be associated with each name
-    n <- length(list.files(path = paste0("data\\download\\",station), pattern = "csv"))
-    fileNames <- list.files(path = paste0("data\\download\\",station), pattern = "csv")
+    n <- list.files(path = file.path(paths$temp_download_path, station), pattern = "csv") %>% 
+      length()
+    fileNames <- list.files(path = file.path(paths$temp_download_path, station), pattern = "csv")
     varNames <- transformNames(fileNames)
     
     # Iteratively reading in each dataset and assigning it to the correct
     # variable (note that we skip the first 9 rows because these don't contain
     # any data)
+    fileNames <- paste0(paths$temp_download_path, '/', station, '/', fileNames)
     for (i in 1:n){
-      assign(varNames[i], read_csv(paste0("data\\download\\",station,"\\",fileNames[i]), skip = 9, col_types = cols()))
+      assign(varNames[i], read_csv(fileNames[i], skip = 9, col_types = cols()))
     }
     
     # If all the datasets are empty flagging this as a problem station and
@@ -237,7 +266,7 @@ for (station in stations_iter) {
     # them such that they contain DAILY mean values and have appropriate column
     # names
     for (name in varNames){
-      assign(name, formatData(get(name), station, name))
+      assign(name, formatDataAsDaily(get(name), station, name))
     }
     
     # Appending each to the correct master dataset  using the "masters" list
@@ -250,7 +279,6 @@ for (station in stations_iter) {
       }else{
         masters[[name]] <- get(name)
       }
-      
     }
     
     # Adding the summary of extracted data for this station to the summary table
@@ -258,16 +286,9 @@ for (station in stations_iter) {
                 "tables_extracted" = paste(fileNames, collapse = ", "))
     summ_table <- summ_table %>% bind_rows(row)
     
-    # If the csv option is set to false, deleting the directory containing the
-    # csv files. If not, doing nothing (the raw data are stored)
-    if(opt$keep == F){
-      unlink("data\\download", recursive = T)
-      dir.create("data\\download")
-    }
-    
     # Priting a status update and incrementing the counter variable
-    print(paste0("Scraped: ", round((countIter/length(stations)) * 100, 2), "% of total data"))
-    countIter <- countIter + 1
+    countIter <<- countIter + 1
+    print(paste0("Scraped: ", round((countIter/length(stations_iter)) * 100, 2), "% of total data"))
   },error = function(e){
     # In case of an error, adding the station to problem stations and breaking
     # the loop to go to the next iteration
