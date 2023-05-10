@@ -65,8 +65,9 @@ tryCatch({
   if(iserror) stop("Can't proceed due to unresolved error in a previous stage")
   
   # Checking if a container named hydat_selenium_scraper already exists
-  containerExists <- system('docker ps -a | grep "selenium/"', intern = T) %>% 
-    str_detect('hydat_selenium_scraper')
+  containerExists <- system('docker ps -a', intern = T) %>% 
+    str_detect('hydat_selenium_scraper') %>% 
+    any()
   
   # If yes, running it. Otherwise, initializing with the correct parameters:
   if(length(containerExists) > 0 && containerExists){

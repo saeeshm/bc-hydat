@@ -149,7 +149,7 @@ if(opt$scraped){
     distinct(Date, .keep_all = T)
   
   # Same for level data
-  realtime_level <- read_csv(paste0(scraped_data_path, "/level_prim_current.csv"), 
+  realtime_level <- read_csv(paste0(scraped_data_path, "/level_current.csv"), 
                             col_types='Dcdccc') %>% 
     select(STATION_NUMBER, Date, Parameter, Value) %>% 
     mutate(Parameter = 'Level') %>% 
