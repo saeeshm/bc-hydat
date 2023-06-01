@@ -39,10 +39,6 @@ creds_path <- paths$postgres_creds_path
 # Folder containing published hydat.sqlite file
 hydat_dir <- paths$pub_hydat_out_path
 
-# Folder where the realtime data files will be stored (i.e outputs from this
-# script)
-# realtime_dir <- paths$realtime_out_path
-
 # Folder containing data scraped using the selenium-download process
 scraped_data_path <- paths$selenium_out_path
 
@@ -50,7 +46,7 @@ scraped_data_path <- paths$selenium_out_path
 pub_status_csv_path <- paths$pub_status_csv_path
 
 # Status report path
-report_path <- file.path(paths$logs_path, 'last_update_report.txt')
+report_path <- file.path(paths$report_path, 'last_update_report.txt')
 
 # ==== Opening database connection ====
 

@@ -66,7 +66,7 @@ my_download_hydat <- function(dl_hydat_here = NULL, ask = TRUE) {
     if(ask){
       dl_overwrite <- ask(paste0("The existing local version of HYDAT, published on ", lubridate::ymd(existing_hydat), ", is the most recent version available.  \nDo you wish to overwrite it?  \nDownloading HYDAT could take up to 10 minutes (", size, " MB)."))
     }else{
-      stop(
+      return(
         paste0("The existing local version of HYDAT, published on ", 
                lubridate::ymd(existing_hydat), 
                ", is the most recent version available. Skipping download...")
@@ -154,7 +154,7 @@ my_download_hydat <- function(dl_hydat_here = NULL, ask = TRUE) {
       }))
     }
     
-    hy_check()
+    hy_check(hydat_path)
     
   } #End of DL and overwrite if statement
 }

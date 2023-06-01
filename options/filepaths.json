@@ -1,13 +1,12 @@
 {
   "data_path": "data",
-  "logs_path": "logs",
+  "selenium_out_path": "data/selenium-download",
+  "station_metadata_path": "data/bc_hydat_station_metadata.csv",
   "tempdir_path": "tempdirs",
   "temp_download_path": "tempdirs/download",
   "temp_zip_path": "tempdirs/zip",
   "pub_hydat_out_path": "data/hydat",
-  "realtime_out_path": "data/hydat",
   "pub_status_csv_path": "data/hydat/pub_status.csv",
-  "selenium_out_path": "data/selenium-download",
-  "station_metadata_path": "data/bc_hydat_station_metadata.csv",
+  "update_report_path": "last_update_report.txt",
   "postgres_creds_path": "options/credentials.json"
 }
