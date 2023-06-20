@@ -37,7 +37,7 @@ option_list <-  list(
 # Parse any provided options and store them in a list
 opt_parser = OptionParser(option_list=option_list)
 opt = parse_args(opt_parser)
-# opt$months <- 4
+# opt$months <- 2
 
 # Reading file paths from JSON
 paths <- rjson::fromJSON(file = 'options/filepaths.json')

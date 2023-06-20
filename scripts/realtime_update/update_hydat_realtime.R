@@ -46,7 +46,7 @@ scraped_data_path <- paths$selenium_out_path
 pub_status_csv_path <- paths$pub_status_csv_path
 
 # Status report path
-report_path <- file.path(paths$report_path, 'last_update_report.txt')
+report_path <- paths$update_report_path
 
 # ==== Opening database connection ====
 
@@ -70,17 +70,8 @@ my_download_hydat(dl_hydat_here = hydat_dir, ask = F)
 # Getting file path to the published hydat version
 pub_hydat_path <- list.files(hydat_dir, pattern = '(H|h)ydat', 
                               full.names = T)
-# Getting path to the realtime-updated hydat version
-# realtime_hydat_path <- paste0(realtime_dir, "/Hydat_realtime.sqlite3")
-  
-# Creating a realtime version of the hydat database if it doesn't already exist
-# file.copy(
-#   from = pub_hydat_path, 
-#   to = realtime_hydat_path, 
-#   overwrite = F
-# )
 
-# Comparinig publication dates
+# Comparing publication dates
 published_date <- hy_version(pub_hydat_path)$Date %>% 
   as.character() %>% 
   ymd_hms()
@@ -145,7 +136,7 @@ if(opt$scraped){
     distinct(Date, .keep_all = T)
   
   # Same for level data
-  realtime_level <- read_csv(paste0(scraped_data_path, "/level_current.csv"), 
+  realtime_level <- read_csv(paste0(scraped_data_path, "/water_level (unit values)_current.csv"), 
                             col_types='Dcdccc') %>% 
     select(STATION_NUMBER, Date, Parameter, Value) %>% 
     mutate(Parameter = 'Level') %>% 
@@ -181,24 +172,6 @@ new_level <- realtime_level %>%
   group_by(STATION_NUMBER) %>% 
   anti_join(BClevel, by = c("STATION_NUMBER", "Date")) %>% 
   ungroup()
-
-# Transforming the new data to hydat table format
-# new_flow_hydat <- format_hydat_flow(new_flow %>% select(-pub_status))
-# new_level_hydat <- format_hydat_level(new_level %>% select(-pub_status))
-
-# ==== Writing new realtime data to postgres ====
-
-# Hydat.sqlite ----------
-
-# # opening sqlite connections
-# connSqlite <- dbConnect(RSQLite::SQLite(), realtime_hydat_path)
-# 
-# # Appending unpublished data to hydat
-# dbWriteTable(connSqlite, "DLY_FLOWS", new_flow_hydat, append = T, overwrite = F)
-# dbWriteTable(connSqlite, "DLY_LEVELS", new_level_hydat, append = T, overwrite = F)
-# 
-# # Closing connection
-# dbDisconnect(connSqlite)
 
 # Postgres ----------
 dbWriteTable(
